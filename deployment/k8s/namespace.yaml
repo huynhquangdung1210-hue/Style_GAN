@@ -1,0 +1,9 @@
+# Kubernetes namespace for Style Transfer API
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: style-transfer
+  labels:
+    name: style-transfer
+    app.kubernetes.io/name: style-transfer
+    app.kubernetes.io/component: namespace

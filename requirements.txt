@@ -1,0 +1,56 @@
+# Core ML Dependencies
+torch>=2.1.0
+torchvision>=0.16.0
+transformers>=4.35.0
+diffusers>=0.24.0
+accelerate>=0.24.0
+
+# API Framework
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+python-multipart>=0.0.6
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+
+# Async Job Processing
+celery>=5.3.0
+redis>=5.0.0
+kombu>=5.3.0
+
+# Image Processing
+pillow>=10.1.0
+opencv-python>=4.8.0
+scikit-image>=0.22.0
+albumentations>=1.3.0
+
+# Cloud Storage
+boto3>=1.34.0
+google-cloud-storage>=2.10.0
+minio>=7.2.0
+
+# Monitoring & Observability
+prometheus-client>=0.19.0
+structlog>=23.2.0
+sentry-sdk[fastapi]>=1.38.0
+opentelemetry-api>=1.21.0
+opentelemetry-sdk>=1.21.0
+opentelemetry-instrumentation-fastapi>=0.42b0
+
+# Security & Safety
+cryptography>=41.0.0
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+nudenet>=2.0.9
+
+# Development & Testing
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-cov>=4.1.0
+black>=23.11.0
+isort>=5.12.0
+flake8>=6.1.0
+mypy>=1.7.0
+
+# Production
+gunicorn>=21.2.0
+supervisor>=4.2.5

@@ -1,0 +1,65 @@
+# ConfigMap for Style Transfer API configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: style-transfer-config
+  namespace: style-transfer
+  labels:
+    app.kubernetes.io/name: style-transfer
+    app.kubernetes.io/component: config
+data:
+  # Application settings
+  ENVIRONMENT: "production"
+  DEBUG: "false"
+  LOG_LEVEL: "INFO"
+  WORKERS: "4"
+  
+  # Model settings
+  USE_FP16: "true"
+  MAX_BATCH_SIZE: "4"
+  DEVICE_TYPE: "cuda"
+  WARMUP_ON_STARTUP: "true"
+  CACHE_STYLE_EMBEDDINGS: "true"
+  
+  # Processing settings
+  MAX_FILE_SIZE_MB: "50"
+  MIN_RESOLUTION: "256,256"
+  MAX_RESOLUTION: "2048,2048"
+  SUPPORTED_FORMATS: "jpg,jpeg,png,webp"
+  ENABLE_NSFW_DETECTION: "true"
+  NSFW_THRESHOLD: "0.7"
+  
+  # Security settings
+  RATE_LIMIT_PER_MINUTE: "30"
+  JWT_ALGORITHM: "HS256"
+  JWT_EXPIRATION_HOURS: "24"
+  
+  # Monitoring settings
+  ENABLE_METRICS: "true"
+  PROMETHEUS_PORT: "9090"
+  ENABLE_TRACING: "true"
+  
+  # Redis settings
+  REDIS_URL: "redis://redis-service:6379"
+  REDIS_MAX_CONNECTIONS: "20"
+  REDIS_TIMEOUT: "30"
+
+---
+# Secret for sensitive configuration
+apiVersion: v1
+kind: Secret
+metadata:
+  name: style-transfer-secrets
+  namespace: style-transfer
+  labels:
+    app.kubernetes.io/name: style-transfer
+    app.kubernetes.io/component: secrets
+type: Opaque
+data:
+  # Base64 encoded secrets - update these values
+  JWT_SECRET_KEY: eW91ci1zZWNyZXQta2V5LWNoYW5nZS1pbi1wcm9kdWN0aW9u  # your-secret-key-change-in-production
+  AWS_ACCESS_KEY_ID: ""
+  AWS_SECRET_ACCESS_KEY: ""
+  S3_BUCKET: c3R5bGUtdHJhbnNmZXItc3RvcmFnZQ==  # style-transfer-storage
+  SENTRY_DSN: ""
+  GRAFANA_PASSWORD: YWRtaW4=  # admin
