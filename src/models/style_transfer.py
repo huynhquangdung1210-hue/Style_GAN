@@ -161,17 +161,18 @@ class NeuralStyleTransfer(StyleTransferModel):
         # Initialize output as content image
         output = content_tensor.clone().requires_grad_(True)
         
-        # Define optimizer
-        optimizer = torch.optim.LBFGS([output], max_iter=num_inference_steps)
+        # Define optimizer with proper LBFGS settings
+        optimizer = torch.optim.LBFGS([output], lr=0.1, max_iter=1, tolerance_grad=1e-7)
         
         # Get style and content features
         content_features = self._get_features(content_tensor)
         style_features = self._get_features(style_tensor)
         style_grams = {layer: self._gram_matrix(features) for layer, features in style_features.items()}
         
-        # Style and content weights - very strong style for visible effect
-        style_weight = style_strength * 1e7  # Increased significantly
-        content_weight = (1 - style_strength) * 5e2  # Reduced further
+        # Style and content weights - much stronger style for dramatic effect
+        style_weight = style_strength * 5e4  # Much stronger
+        content_weight = (1 - style_strength) * 1  # Allow more style freedom
+        tv_weight = 5  # Total variation weight for denoising
         
         def closure():
             optimizer.zero_grad()
@@ -180,24 +181,120 @@ class NeuralStyleTransfer(StyleTransferModel):
             # Content loss
             content_loss = torch.mean((output_features['conv4_2'] - content_features['conv4_2']) ** 2)
             
-            # Style loss with layer weighting
+            # Style loss
             style_loss = 0
             style_layers = ['conv1_1', 'conv2_1', 'conv3_1', 'conv4_1', 'conv5_1']
-            layer_weights = [1.0, 0.8, 0.6, 0.4, 0.2]  # Weight earlier layers more
-            
+            layer_weights = [1.0, 1.0, 1.0, 1.0, 1.0]
             for layer, weight in zip(style_layers, layer_weights):
                 output_gram = self._gram_matrix(output_features[layer])
                 style_gram = style_grams[layer]
                 layer_style_loss = torch.mean((output_gram - style_gram) ** 2)
-                style_loss += weight * layer_style_loss / len(style_layers)
+                # style_loss += weight * layer_style_loss / len(style_layers)
+                style_loss += weight * layer_style_loss
             
-            total_loss = content_weight * content_loss + style_weight * style_loss
+            # Total variation loss (denoising)
+            tv_loss = torch.mean((output[:, :, :, 1:] - output[:, :, :, :-1])**2) + \
+                      torch.mean((output[:, :, 1:, :] - output[:, :, :-1, :])**2)
+            
+            # Combine losses
+            total_loss = (
+                content_weight * content_loss +
+                style_weight * style_loss +
+                tv_weight * tv_loss
+            )
             total_loss.backward()
             return total_loss
         
-        # Optimize - more iterations for stronger effect
-        for i in range(min(num_inference_steps * 3, 60)):  # More iterations
-            optimizer.step(closure)
+        # Optimize with more iterations for better results
+        for i in range(min(num_inference_steps * 8, 400)):  # More iterations
+            loss = optimizer.step(closure)
+            with torch.no_grad():
+                output.clamp_(-1.5, 1.5)   # Clamp pixels to prevent dark picels that would translate to noise
+
+            
+            # Log loss terms and diagnostics periodically
+            if i % 50 == 0:  # Log every 50 iterations
+                with torch.no_grad():
+                    # Check pixel value ranges for normalization issues
+                    output_min = output.min().item()
+                    output_max = output.max().item()
+                    output_mean = output.mean().item()
+                    
+                    # Check for extreme values that could cause artifacts
+                    extreme_low = torch.sum(output < -3.0).item()  # Very negative values
+                    extreme_high = torch.sum(output > 3.0).item()  # Very positive values
+                    
+                    output_features = self._get_features(output)
+                    content_loss = torch.mean((output_features['conv4_2'] - content_features['conv4_2']) ** 2)
+                    
+                    # Check ReLU saturation in feature maps
+                    relu_zeros = {}
+                    total_activations = {}
+                    for layer_name, features in output_features.items():
+                        if layer_name in ['conv1_1', 'conv2_1', 'conv3_1', 'conv4_1', 'conv5_1']:
+                            total_pixels = features.numel()
+                            zero_pixels = torch.sum(features == 0).item()
+                            relu_zeros[layer_name] = (zero_pixels / total_pixels) * 100
+                            total_activations[layer_name] = total_pixels
+                    
+                    style_loss = 0
+                    style_layers = ['conv1_1', 'conv2_1', 'conv3_1', 'conv4_1', 'conv5_1']
+                    layer_weights = [1.0, 1.0, 1.0, 1.0, 1.0]
+                    for layer, weight in zip(style_layers, layer_weights):
+                        output_gram = self._gram_matrix(output_features[layer])
+                        style_gram = style_grams[layer]
+                        layer_style_loss = torch.mean((output_gram - style_gram) ** 2)
+                        style_loss += weight * layer_style_loss
+                    
+                    tv_loss = torch.mean((output[:, :, :, 1:] - output[:, :, :, :-1])**2) + \
+                              torch.mean((output[:, :, 1:, :] - output[:, :, :-1, :])**2)
+
+                    content_term = content_weight * content_loss
+                    style_term = style_weight * style_loss
+                    tv_term = tv_weight * tv_loss
+                    
+                    print(f"Step {i:3d}: content_term={content_term.item():.6f}, style_term={style_term.item():.6f}, tv_term={tv_term.item():.6f}, total={loss.item():.6f}")
+                    print(f"         Pixel range: [{output_min:.3f}, {output_max:.3f}] mean={output_mean:.3f}")
+                    print(f"         Extreme values: {extreme_low} low (<-3.0), {extreme_high} high (>3.0)")
+                    
+                    # Log ReLU saturation percentages
+                    relu_info = ", ".join([f"{layer}={pct:.1f}%" for layer, pct in relu_zeros.items()])
+                    print(f"         ReLU zeros: {relu_info}")
+                    
+                    # Warn about potential issues
+                    if extreme_low > 1000 or extreme_high > 1000:
+                        print(f"         WARNING: Many extreme pixel values detected - may cause artifacts")
+                    
+                    max_relu_saturation = max(relu_zeros.values()) if relu_zeros else 0
+                    if max_relu_saturation > 80:
+                        print(f"         WARNING: High ReLU saturation ({max_relu_saturation:.1f}%) - may cause dark artifacts")
+                    
+                    import time
+                    time.sleep(0.001)  # Small delay to yield control
+        
+        # Log final pixel statistics before postprocessing
+        with torch.no_grad():
+            final_min = output.min().item()
+            final_max = output.max().item()
+            final_mean = output.mean().item()
+            final_std = output.std().item()
+            
+            # Count extreme values
+            extreme_low_final = torch.sum(output < -3.0).item()
+            extreme_high_final = torch.sum(output > 3.0).item()
+            
+            print(f"\nFinal optimization stats:")
+            print(f"  Pixel range: [{final_min:.3f}, {final_max:.3f}] mean={final_mean:.3f} std={final_std:.3f}")
+            print(f"  Extreme values: {extreme_low_final} low, {extreme_high_final} high")
+            
+            # Apply gentle clamping to prevent artifacts while preserving dynamic range
+            if extreme_low_final > 0 or extreme_high_final > 0:
+                print(f"  Applying gentle clamping to prevent artifacts...")
+                output.data = torch.clamp(output.data, -2.5, 2.5)  # Gentle clamp within ~6 std devs
+                
+                clamped_min = output.min().item()
+                clamped_max = output.max().item()
+                print(f"  After clamping: [{clamped_min:.3f}, {clamped_max:.3f}]")
         
         # Convert back to PIL Image
         output_image = self._postprocess_image(output)
@@ -207,16 +304,33 @@ class NeuralStyleTransfer(StyleTransferModel):
         """Preprocess PIL image to tensor."""
         # Resize maintaining aspect ratio
         image = image.convert('RGB')
-        image = image.resize((size, size), Image.Resampling.LANCZOS)
-        
+        # image = image.resize((size, size), Image.Resampling.LANCZOS)
+        npimage=np.array(image)
         tensor = self.transform(image).unsqueeze(0).to(self.device)
+
         return tensor
     
     def _postprocess_image(self, tensor: torch.Tensor) -> Image.Image:
         """Convert tensor back to PIL image."""
         tensor = tensor.cpu().squeeze(0)
+        
+        # Log tensor statistics before inverse transform
+        tensor_min = tensor.min().item()
+        tensor_max = tensor.max().item()
+        tensor_mean = tensor.mean().item()
+        print(f"\nPostprocess input tensor: range=[{tensor_min:.3f}, {tensor_max:.3f}] mean={tensor_mean:.3f}")
+        
         # Don't clamp here - let the inverse transform handle denormalization
         image = self.inverse_transform(tensor)
+        
+        # Convert to numpy to check final pixel values
+        img_array = np.array(image)
+        print(f"Final PIL image: range=[{img_array.min()}, {img_array.max()}] shape={img_array.shape}")
+        
+        # Check for any unusual pixel patterns
+        if img_array.min() < 0 or img_array.max() > 255:
+            print(f"WARNING: PIL image has out-of-range values!")
+            
         return image
     
     def _get_features(self, image: torch.Tensor) -> Dict[str, torch.Tensor]:

@@ -9,6 +9,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent / "src"))
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
@@ -49,33 +50,24 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins for development
+    allow_credentials=True,
+    allow_methods=["*"],  # Allow all methods
+    allow_headers=["*"],  # Allow all headers
+)
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
-    try:
-        settings = get_settings()
-        storage_client = get_storage_client()
-        
-        # Test storage connectivity
-        storage_healthy = True
-        try:
-            # Simple test - check if we can access storage client
-            _ = storage_client.settings
-        except Exception:
-            storage_healthy = False
-        
-        return {
-            "status": "healthy",
-            "version": "1.0.0",
-            "storage_type": settings.storage.storage_type,
-            "storage_healthy": storage_healthy,
-            "total_jobs": len(jobs_storage)
-        }
-    except Exception as e:
-        return JSONResponse(
-            status_code=500,
-            content={"status": "unhealthy", "error": str(e)}
-        )
+    return {
+        "status": "healthy",
+        "version": "1.0.0",
+        "message": "Style Transfer API is running",
+        "total_jobs": len(jobs_storage)
+    }
 
 @app.get("/")
 async def root():

@@ -341,9 +341,11 @@ class ImageProcessor:
             augmented = self.transforms['augment'](image=image_array)
             image_array = augmented['image']
         
+        print("First image pixel range:", image_array.min(), image_array.max())
         # Apply preprocessing transforms
         preprocessed = self.transforms['preprocess'](image=image_array)
-        
+        print("Second image pixel range after preprocessing:", preprocessed['image'].min(), preprocessed['image'].max())
+
         return preprocessed['image']
     
     async def _smart_resize(self, image: np.ndarray, target_size: Tuple[int, int]) -> np.ndarray:

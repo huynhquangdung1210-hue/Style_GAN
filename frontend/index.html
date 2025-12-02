@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neural Style Transfer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+
+        .main-content {
+            padding: 40px;
+        }
+
+        .upload-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+
+        .upload-box {
+            border: 3px dashed #ddd;
+            border-radius: 15px;
+            padding: 30px;
+            text-align: center;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            min-height: 200px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .upload-box:hover {
+            border-color: #667eea;
+            background: #f8f9ff;
+        }
+
+        .upload-box.dragover {
+            border-color: #667eea;
+            background: #f0f4ff;
+        }
+
+        .upload-box h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.4rem;
+        }
+
+        .upload-box p {
+            color: #666;
+            margin-bottom: 20px;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .upload-btn {
+            background: #667eea;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background 0.3s ease;
+        }
+
+        .upload-btn:hover {
+            background: #5a6fd8;
+        }
+
+        .preview {
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        .preview img {
+            max-width: 100%;
+            max-height: 150px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .controls {
+            background: #f8f9fa;
+            padding: 30px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+        }
+
+        .control-group {
+            margin-bottom: 20px;
+        }
+
+        .control-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .control-group input[type="range"] {
+            width: 100%;
+            height: 8px;
+            background: #ddd;
+            border-radius: 5px;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        .control-group input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #667eea;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        .control-group select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            background: white;
+        }
+
+        .generate-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 40px;
+            border: none;
+            border-radius: 30px;
+            font-size: 18px;
+            cursor: pointer;
+            width: 100%;
+            margin-bottom: 30px;
+            transition: transform 0.3s ease;
+        }
+
+        .generate-btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .generate-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .result-section {
+            text-align: center;
+        }
+
+        .result-section h3 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 1.5rem;
+        }
+
+        .result-image {
+            max-width: 100%;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        .progress {
+            background: #f0f0f0;
+            border-radius: 10px;
+            padding: 3px;
+            margin: 20px 0;
+        }
+
+        .progress-bar {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            height: 25px;
+            border-radius: 8px;
+            width: 0%;
+            transition: width 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+
+        .status {
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        @media (max-width: 768px) {
+            .upload-section {
+                grid-template-columns: 1fr;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎨 Neural Style Transfer</h1>
+            <p>Transform your images with AI-powered artistic style transfer</p>
+        </div>
+
+        <div class="main-content">
+            <div class="upload-section">
+                <div class="upload-box" id="contentUpload">
+                    <h3>📷 Content Image</h3>
+                    <p>Upload the image you want to stylize</p>
+                    <button class="upload-btn" onclick="document.getElementById('contentFile').click()">
+                        Choose Content Image
+                    </button>
+                    <input type="file" id="contentFile" class="file-input" accept="image/*">
+                    <div class="preview" id="contentPreview"></div>
+                </div>
+
+                <div class="upload-box" id="styleUpload">
+                    <h3>🎭 Style Image</h3>
+                    <p>Upload the style reference image</p>
+                    <button class="upload-btn" onclick="document.getElementById('styleFile').click()">
+                        Choose Style Image
+                    </button>
+                    <input type="file" id="styleFile" class="file-input" accept="image/*">
+                    <div class="preview" id="stylePreview"></div>
+                </div>
+            </div>
+
+            <div class="controls">
+                <div class="control-group">
+                    <label for="styleStrength">Style Strength: <span id="styleStrengthValue">0.8</span></label>
+                    <input type="range" id="styleStrength" min="0.1" max="1.0" step="0.1" value="0.8">
+                </div>
+
+                <div class="control-group">
+                    <label for="quality">Quality Setting:</label>
+                    <select id="quality">
+                        <option value="low">Low (Fast)</option>
+                        <option value="medium" selected>Medium (Balanced)</option>
+                        <option value="high">High (Best Quality)</option>
+                    </select>
+                </div>
+
+                <div class="control-group">
+                    <label for="iterations">Inference Steps: <span id="iterationsValue">20</span></label>
+                    <input type="range" id="iterations" min="5" max="50" step="5" value="20">
+                </div>
+            </div>
+
+            <button class="generate-btn" id="generateBtn" onclick="generateStyleTransfer()">
+                🎨 Generate Style Transfer
+            </button>
+
+            <div id="statusArea"></div>
+            
+            <div class="result-section" id="resultSection" style="display: none;">
+                <h3>✨ Result</h3>
+                <img id="resultImage" class="result-image" alt="Style transfer result">
+                <br><br>
+                <button class="upload-btn" onclick="downloadResult()">📥 Download Result</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let contentFile = null;
+        let styleFile = null;
+        let currentJobId = null;
+
+        // File input handlers
+        document.getElementById('contentFile').addEventListener('change', function(e) {
+            handleFileSelect(e.target.files[0], 'content');
+        });
+
+        document.getElementById('styleFile').addEventListener('change', function(e) {
+            handleFileSelect(e.target.files[0], 'style');
+        });
+
+        // Range input handlers
+        document.getElementById('styleStrength').addEventListener('input', function(e) {
+            document.getElementById('styleStrengthValue').textContent = e.target.value;
+        });
+
+        document.getElementById('iterations').addEventListener('input', function(e) {
+            document.getElementById('iterationsValue').textContent = e.target.value;
+        });
+
+        // Drag and drop handlers
+        ['contentUpload', 'styleUpload'].forEach(id => {
+            const element = document.getElementById(id);
+            
+            element.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                this.classList.add('dragover');
+            });
+
+            element.addEventListener('dragleave', function(e) {
+                e.preventDefault();
+                this.classList.remove('dragover');
+            });
+
+            element.addEventListener('drop', function(e) {
+                e.preventDefault();
+                this.classList.remove('dragover');
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    const type = id === 'contentUpload' ? 'content' : 'style';
+                    handleFileSelect(files[0], type);
+                }
+            });
+        });
+
+        function handleFileSelect(file, type) {
+            if (!file || !file.type.startsWith('image/')) {
+                showStatus('Please select a valid image file.', 'error');
+                return;
+            }
+
+            if (type === 'content') {
+                contentFile = file;
+                showPreview(file, 'contentPreview');
+            } else {
+                styleFile = file;
+                showPreview(file, 'stylePreview');
+            }
+
+            updateGenerateButton();
+        }
+
+        function showPreview(file, previewId) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const preview = document.getElementById(previewId);
+                preview.innerHTML = `<img src="${e.target.result}" alt="Preview">`;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function updateGenerateButton() {
+            const btn = document.getElementById('generateBtn');
+            btn.disabled = !(contentFile && styleFile);
+        }
+
+        function toBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => resolve(reader.result.split(',')[1]);
+                reader.onerror = error => reject(error);
+            });
+        }
+
+        async function generateStyleTransfer() {
+            if (!contentFile || !styleFile) {
+                showStatus('Please select both content and style images.', 'error');
+                return;
+            }
+
+            try {
+                showStatus('Preparing images...', 'info');
+                
+                const contentBase64 = await toBase64(contentFile);
+                const styleBase64 = await toBase64(styleFile);
+
+                const requestData = {
+                    subject_image: contentBase64,
+                    style_image: styleBase64,
+                    style_strength: parseFloat(document.getElementById('styleStrength').value),
+                    quality: document.getElementById('quality').value,
+                    num_inference_steps: parseInt(document.getElementById('iterations').value)
+                };
+
+                showStatus('Submitting job to server...', 'info');
+                
+                const response = await fetch('http://localhost:8080/v1/generate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(requestData)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const result = await response.json();
+                currentJobId = result.job_id;
+
+                showStatus(`Job created: ${currentJobId}`, 'success');
+                
+                // Poll for completion
+                pollJobStatus();
+
+            } catch (error) {
+                showStatus(`Error: ${error.message}`, 'error');
+                console.error('Error:', error);
+            }
+        }
+
+        async function pollJobStatus() {
+            if (!currentJobId) return;
+
+            try {
+                const response = await fetch(`http://localhost:8080/v1/jobs/${currentJobId}`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const job = await response.json();
+                
+                showProgress(job.progress || 0, job.status);
+                
+                if (job.status === 'completed') {
+                    showStatus('Style transfer completed! Loading result...', 'success');
+                    await loadResult();
+                } else if (job.status === 'failed') {
+                    showStatus(`Job failed: ${job.error || 'Unknown error'}`, 'error');
+                } else {
+                    // Continue polling
+                    setTimeout(pollJobStatus, 2000);
+                }
+
+            } catch (error) {
+                showStatus(`Error checking job status: ${error.message}`, 'error');
+            }
+        }
+
+        async function loadResult() {
+            if (!currentJobId) return;
+
+            try {
+                const response = await fetch(`http://localhost:8080/v1/results/${currentJobId}`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const blob = await response.blob();
+                const imageUrl = URL.createObjectURL(blob);
+                
+                document.getElementById('resultImage').src = imageUrl;
+                document.getElementById('resultSection').style.display = 'block';
+                
+                showStatus('Style transfer completed successfully!', 'success');
+
+            } catch (error) {
+                showStatus(`Error loading result: ${error.message}`, 'error');
+            }
+        }
+
+        function downloadResult() {
+            if (!currentJobId) return;
+            
+            const link = document.createElement('a');
+            link.href = `http://localhost:8080/v1/results/${currentJobId}`;
+            link.download = `style_transfer_${currentJobId}.jpg`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function showStatus(message, type = 'info') {
+            const statusArea = document.getElementById('statusArea');
+            statusArea.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+
+        function showProgress(progress, status) {
+            const statusArea = document.getElementById('statusArea');
+            const progressPercent = Math.round(progress * 100);
+            
+            statusArea.innerHTML = `
+                <div class="status info">Status: ${status}</div>
+                <div class="progress">
+                    <div class="progress-bar" style="width: ${progressPercent}%">
+                        ${progressPercent}%
+                    </div>
+                </div>
+            `;
+        }
+
+        // Initialize
+        updateGenerateButton();
+    </script>
+</body>
+</html>
