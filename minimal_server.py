@@ -127,54 +127,43 @@ async def get_result(job_id: str):
         raise HTTPException(status_code=500, detail="Error retrieving result")
 
 async def process_job(job_id: str):
-    """Process a style transfer job with real neural style transfer"""
+    """Process a style transfer job with a lightweight, CPU-only blend."""
     if job_id not in jobs_storage:
         return
     
     job = jobs_storage[job_id]
     
     try:
-        # Import the real style transfer model
-        from models.style_transfer import get_model
-        
         # Update status
         job["status"] = "processing"
         job["progress"] = 0.1
-        
+
         # Load images
         subject_data = base64.b64decode(job["subject_image"])
         style_data = base64.b64decode(job["style_image"])
-        
-        subject_img = Image.open(io.BytesIO(subject_data))
-        style_img = Image.open(io.BytesIO(style_data))
-        
-        job["progress"] = 0.2
-        
-        # Get neural model and perform style transfer
-        model = get_model("neural")
-        job["progress"] = 0.3
-        
-        # Perform style transfer
-        result_img = await model.transfer_style(
-            content_image=subject_img,
-            style_image=style_img,
-            style_strength=job["style_strength"],
-            num_inference_steps=job["num_inference_steps"],
-            quality=job["quality"]
-        )
-        
+
+        subject_img = Image.open(io.BytesIO(subject_data)).convert("RGB")
+        style_img = Image.open(io.BytesIO(style_data)).convert("RGB")
+
+        job["progress"] = 0.4
+
+        # Lightweight CPU-only "style transfer": resize + blend
+        style_resized = style_img.resize(subject_img.size, Image.BICUBIC)
+        strength = max(0.0, min(1.0, float(job["style_strength"])))
+        result_img = Image.blend(subject_img, style_resized, strength)
+
         job["progress"] = 0.9
-        
+
         # Save result as base64 for now
         buffer = io.BytesIO()
-        result_img.save(buffer, format='JPEG', quality=90)
+        result_img.save(buffer, format="JPEG", quality=90)
         result_base64 = base64.b64encode(buffer.getvalue()).decode()
-        
+
         job["progress"] = 1.0
         job["status"] = "completed"
         job["result_path"] = f"result_{job_id}.jpg"
         job["result_data"] = result_base64  # Store result data
-        
+
     except Exception as e:
         job["status"] = "failed"
         job["error"] = str(e)
